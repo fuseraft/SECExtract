@@ -17,7 +17,6 @@ namespace SECExtract {
                 var word = new Microsoft.Office.Interop.Word.Application();
                 word.Visible = false;
 
-                object missing = System.Reflection.Missing.Value;
                 object input = (object)inputPath;
                 object output = (object)Path.Combine(outputPath, path.Replace(".doc", extension));
                 object outFormat = (object)WdSaveFormat.wdFormatPDF;

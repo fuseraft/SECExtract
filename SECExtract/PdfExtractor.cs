@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -118,31 +118,48 @@ namespace SECExtract {
             }
             return path;
         }
-		
-		public static void JoinPDFs(string[] files, string outFile) {
-			using (var doc = new Document()) {
-				using (var writer = new PdfCopy(doc, new FileStream(outFile, FileMode.Create))) {
-					if (writer == null)
-						return;
+        
+        public static void JoinPDFs(string[] files, string outFile) {
+            using (var doc = new Document()) {
+                using (var writer = new PdfCopy(doc, new FileStream(outFile, FileMode.Create))) {
+                    if (writer == null)
+                        return;
 
-					doc.Open();
+                    writer.SetMergeFields();
+                    doc.Open();
 
-					foreach (var file in files) {
-						using (var reader = new PdfReader(file)) {
-							reader.ConsolidateNamedDestinations();
+                    foreach (var file in files) {
+                        using (var reader = new PdfReader(file)) {
+                            reader.ConsolidateNamedDestinations();
 
-							for (int i = 1; i <= reader.NumberOfPages; i++) {                
-								PdfImportedPage page = writer.GetImportedPage(reader, i);
-								writer.AddPage(page);
-							}
+                            writer.AddDocument(reader);
+                        }
+                    }
+                }
+            }
+        }
 
-							var form = reader.AcroForm;
-							if (form != null)
-								writer.CopyAcroForm(reader);
-						}
-					}
-				}
-			}
-		}
+        public static void AddPages(string[] files, string outFile) {
+            using (var doc = new Document()) {
+                using (var writer = new PdfCopy(doc, new FileStream(outFile, FileMode.Create))) {
+                    if (writer == null)
+                        return;
+
+                    writer.SetMergeFields();
+                    doc.Open();
+
+                    foreach (var file in files) {
+                        using (var reader = new PdfReader(file)) {
+                            reader.ConsolidateNamedDestinations();
+
+                            for (int i = 1; i <= reader.NumberOfPages; i++) {                
+                                PdfImportedPage page = writer.GetImportedPage(reader, i);
+                                writer.AddPage(page);
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }

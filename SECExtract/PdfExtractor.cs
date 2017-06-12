@@ -120,22 +120,30 @@ namespace SECExtract {
         }
         
         public static void JoinPDFs(string[] files, string outFile) {
-            using (var doc = new Document()) {
-                using (var writer = new PdfCopy(doc, new FileStream(outFile, FileMode.Create))) {
-                    if (writer == null)
-                        return;
+            using (var ms = new MemoryStream()) {
+                var doc = new Document();
+                var copy = new PdfSmartCopy(doc, ms);
+                var readers = new List<PdfReader>();
 
-                    writer.SetMergeFields();
-                    doc.Open();
+                doc.Open();
 
-                    foreach (var file in files) {
-                        using (var reader = new PdfReader(file)) {
-                            reader.ConsolidateNamedDestinations();
-
-                            writer.AddDocument(reader);
-                        }
-                    }
+                foreach (var file in files) {
+                    var reader = new PdfReader(file);
+                    reader.ConsolidateNamedDestinations();
+                    copy.AddDocument(reader);
+                    readers.Add(reader);
                 }
+
+                copy.Close();
+
+                foreach (var reader in readers) {
+                    reader.Close();
+                }
+
+                doc.Close();
+
+                ms.Flush();
+                File.WriteAllBytes(outFile, ms.ToArray());
             }
         }
 

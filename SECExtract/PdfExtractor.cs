@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 
 using System.IO;
 using iTextSharp.text;
@@ -12,39 +10,37 @@ using iTextSharp.text.pdf.parser;
 namespace SECExtract {
     public class PdfExtractor {
         public static int GetPageCount(string sourcePdfPath) {
-            int pageCount = 0;
-            try {
-                var reader = new PdfReader(sourcePdfPath);
+            var pageCount = 0;
+
+            using (var reader = new PdfReader(sourcePdfPath)) {
                 pageCount = reader.NumberOfPages;
-                reader.Close();
             }
-            catch (Exception) {
-                throw;
-            }
+            
             return pageCount;
         }
 
         public static string ReadPdfFile(string fileName, int startPage = 1, int endPage = -1) {
-            StringBuilder text = new StringBuilder();
+            var text = new StringBuilder();
 
             if (File.Exists(fileName)) {
-                PdfReader pdfReader = new PdfReader(fileName);
+                using (var pdfReader = new PdfReader(fileName)) {
+                    if (startPage < 1 || startPage > endPage)
+                        startPage = 1;
 
-                if (startPage < 1 || startPage > endPage)
-                    startPage = 1;
+                    if (endPage < 0 || endPage < startPage)
+                        endPage = pdfReader.NumberOfPages;
 
-                if (endPage < 0 || endPage < startPage)
-                    endPage = pdfReader.NumberOfPages;
+                    for (int page = startPage; page <= endPage; page++)
+                    {
+                        ITextExtractionStrategy strategy = new SimpleTextExtractionStrategy();
+                        string currentText = PdfTextExtractor.GetTextFromPage(pdfReader, page, strategy);
 
-                for (int page = startPage; page <= endPage; page++) {
-                    ITextExtractionStrategy strategy = new SimpleTextExtractionStrategy();
-                    string currentText = PdfTextExtractor.GetTextFromPage(pdfReader, page, strategy);
-
-                    currentText = Encoding.UTF8.GetString(ASCIIEncoding.Convert(Encoding.Default, Encoding.UTF8, Encoding.Default.GetBytes(currentText)));
-                    text.Append(currentText);
+                        currentText = Encoding.UTF8.GetString(ASCIIEncoding.Convert(Encoding.Default, Encoding.UTF8, Encoding.Default.GetBytes(currentText)));
+                        text.Append(currentText);
+                    }
                 }
-                pdfReader.Close();
             }
+
             return text.ToString();
         }
 
@@ -60,7 +56,7 @@ namespace SECExtract {
 
                 sourceDocument = new Document(reader.GetPageSizeWithRotation(startPage));
 
-                pdfCopyProvider = new PdfCopy(sourceDocument, new System.IO.FileStream(outputPdfPath, System.IO.FileMode.Create));
+                pdfCopyProvider = new PdfCopy(sourceDocument, new FileStream(outputPdfPath, FileMode.Create));
 
                 sourceDocument.Open();
 
@@ -72,54 +68,121 @@ namespace SECExtract {
                 reader.Close();
                 success = true;
             }
-            catch {
-                throw;
-            }
+            catch { throw; }
 
             return success;
         }
 
-        public static List<string> SplitPDF(string pdfFromDoc, string dumpPath) {
+        public static List<string> SplitPdf(string pdfFromDoc, string dumpPath) {
             var output = new List<string>();
 
             try {
                 var fileName = Path.GetFileNameWithoutExtension(pdfFromDoc);
-                int pageCount = PdfExtractor.GetPageCount(pdfFromDoc);
+                int pageCount = GetPageCount(pdfFromDoc);
                 for (int i = 1; i <= pageCount; i++) {
-                    var outputPath = Path.Combine(dumpPath, String.Format("{0}_{1}.pdf", fileName, i));
+                    var outputPath = Path.Combine(dumpPath, $"{fileName}_{i}.pdf");
                     if (ExtractPages(pdfFromDoc, outputPath, i, i))
                         output.Add(outputPath);
                 }
             }
-            catch {
-                throw;
-            }
+            catch { throw; }
+
             return output;
         }
 
-        public static string PDFToPNG(string pdf) {
-            var path = pdf.Replace(".pdf", ".png");
+        public enum GSImageFormat {
+            Bmp = GhostscriptSharp.Settings.GhostscriptDevices.bmp256,
+            Jpeg = GhostscriptSharp.Settings.GhostscriptDevices.jpeg,
+            Png = GhostscriptSharp.Settings.GhostscriptDevices.png256,
+            Tiff = GhostscriptSharp.Settings.GhostscriptDevices.tiff32nc
+        }
+
+        private static string GetExtensionFromImageFormat(GSImageFormat imageFormat) {
+            var ext = string.Empty;
+
+            switch (imageFormat) {
+                case GSImageFormat.Bmp:
+                    ext = ".bmp";
+                    break;
+                case GSImageFormat.Jpeg:
+                    ext = ".jpg";
+                    break;
+                case GSImageFormat.Png:
+                    ext = ".png";
+                    break;
+                case GSImageFormat.Tiff:
+                    ext = ".tiff";
+                    break;
+            }
+
+            return ext;
+        }
+
+        public static string PdfToImage(string pdf, GSImageFormat imageFormat, System.Drawing.Size overrideSize) {
+            var ext = GetExtensionFromImageFormat(imageFormat);
+
+            if (string.IsNullOrEmpty(ext))
+                throw new Exception($"Invalid ImageFormat: {imageFormat}");
+
+            var path = pdf.Replace(".pdf", ext);
+
             try {
-                var settings = new GhostscriptSharp.GhostscriptSettings();
-                settings.Device = GhostscriptSharp.Settings.GhostscriptDevices.png256;
-                settings.Resolution = new System.Drawing.Size(72, 72);
-                settings.Page.Start = 1;
-                settings.Page.End = 1;
-                settings.Page.AllPages = false;
-                var size = new GhostscriptSharp.Settings.GhostscriptPageSize();
-                size.Native = GhostscriptSharp.Settings.GhostscriptPageSizes.letter;
-                settings.Size = size;
+                var settings = new GhostscriptSharp.GhostscriptSettings()
+                {
+                    Device = (GhostscriptSharp.Settings.GhostscriptDevices)imageFormat,
+                    Resolution = overrideSize,
+                    Page = {
+                        Start = 1,
+                        End = 1,
+                        AllPages = false
+                    },
+                    Size = new GhostscriptSharp.Settings.GhostscriptPageSize()
+                    {
+                        Native = GhostscriptSharp.Settings.GhostscriptPageSizes.letter
+                    }
+                };
+
                 GhostscriptSharp.GhostscriptWrapper.GenerateOutput(pdf, path, settings);
-                if (!System.IO.File.Exists(path))
-                    path = string.Empty;
+
+                if (!File.Exists(path))
+                    throw new Exception($"Could not generate output: {path}");
             }
-            catch {
-                throw;
-            }
+            catch { throw; }
+
             return path;
         }
+
+        public static byte[] GetFlatPdf(string pdf)
+        {
+            PdfReader.unethicalreading = true;
+            using (var reader = new PdfReader(pdf))
+            using (var ms = new MemoryStream())
+            using (var stamper = new PdfStamper(reader, ms) { FormFlattening = true })
+            {
+                PdfReader.unethicalreading = true;
+                return ms.ToArray();
+            }
+        }
+
+        public static byte[] GetFlattenedPdfBytes(string sourcePdfPath) {
+            var bytes = new List<byte>();
+            
+            if (File.Exists(sourcePdfPath)) {
+                using (var ms = new MemoryStream())
+                using (var reader = new PdfReader(sourcePdfPath))
+                {
+                    //PdfReader.unethicalreading = true;
+                    using (var stamper = new PdfStamper(reader, ms) { FormFlattening = true })
+                    {
+                        bytes.AddRange(ms.ToArray());
+                    }
+                }
+            }
+
+            return bytes.ToArray();
+        }
         
-        public static void JoinPDFs(string[] files, string outFile) {
+        public static void JoinPdfs(string[] files, string outFile) {
             using (var ms = new MemoryStream()) {
                 var doc = new Document();
                 var copy = new PdfSmartCopy(doc, ms);
@@ -136,9 +199,8 @@ namespace SECExtract {
 
                 copy.Close();
 
-                foreach (var reader in readers) {
+                foreach (var reader in readers)
                     reader.Close();
-                }
 
                 doc.Close();
 
@@ -148,22 +210,20 @@ namespace SECExtract {
         }
 
         public static void AddPages(string[] files, string outFile) {
-            using (var doc = new Document()) {
-                using (var writer = new PdfCopy(doc, new FileStream(outFile, FileMode.Create))) {
-                    if (writer == null)
-                        return;
+            using (var doc = new Document())
+            using (var writer = new PdfCopy(doc, new FileStream(outFile, FileMode.Create))) {
+                if (writer == null) return;
 
-                    writer.SetMergeFields();
-                    doc.Open();
+                writer.SetMergeFields();
+                doc.Open();
 
-                    foreach (var file in files) {
-                        using (var reader = new PdfReader(file)) {
-                            reader.ConsolidateNamedDestinations();
+                foreach (var file in files) {
+                    using (var reader = new PdfReader(file)) {
+                        reader.ConsolidateNamedDestinations();
 
-                            for (int i = 1; i <= reader.NumberOfPages; i++) {                
-                                PdfImportedPage page = writer.GetImportedPage(reader, i);
-                                writer.AddPage(page);
-                            }
+                        for (int i = 1; i <= reader.NumberOfPages; i++) {                
+                            PdfImportedPage page = writer.GetImportedPage(reader, i);
+                            writer.AddPage(page);
                         }
                     }
                 }

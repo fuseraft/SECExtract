@@ -126,8 +126,7 @@ namespace SECExtract {
             var path = pdf.Replace(".pdf", ext);
 
             try {
-                var settings = new GhostscriptSharp.GhostscriptSettings()
-                {
+                var settings = new GhostscriptSharp.GhostscriptSettings() {
                     Device = (GhostscriptSharp.Settings.GhostscriptDevices)imageFormat,
                     Resolution = overrideSize,
                     Page = {
@@ -135,8 +134,7 @@ namespace SECExtract {
                         End = 1,
                         AllPages = false
                     },
-                    Size = new GhostscriptSharp.Settings.GhostscriptPageSize()
-                    {
+                    Size = new GhostscriptSharp.Settings.GhostscriptPageSize() {
                         Native = GhostscriptSharp.Settings.GhostscriptPageSizes.letter
                     }
                 };
@@ -151,13 +149,11 @@ namespace SECExtract {
             return path;
         }
 
-        public static byte[] GetFlatPdf(string pdf)
-        {
+        public static byte[] GetFlatPdf(string pdf) {
             PdfReader.unethicalreading = true;
             using (var reader = new PdfReader(pdf))
             using (var ms = new MemoryStream())
-            using (var stamper = new PdfStamper(reader, ms) { FormFlattening = true })
-            {
+            using (var stamper = new PdfStamper(reader, ms) { FormFlattening = true }) {
                 PdfReader.unethicalreading = true;
                 return ms.ToArray();
             }
@@ -169,12 +165,8 @@ namespace SECExtract {
             if (File.Exists(sourcePdfPath)) {
                 using (var ms = new MemoryStream())
                 using (var reader = new PdfReader(sourcePdfPath))
-                {
-                    //PdfReader.unethicalreading = true;
-                    using (var stamper = new PdfStamper(reader, ms) { FormFlattening = true })
-                    {
-                        bytes.AddRange(ms.ToArray());
-                    }
+                using (var stamper = new PdfStamper(reader, ms) { FormFlattening = true }) {
+                    bytes.AddRange(ms.ToArray());
                 }
             }
 

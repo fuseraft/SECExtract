@@ -53,9 +53,7 @@ namespace SECExtract {
 
             try {
                 reader = new PdfReader(sourcePdfPath);
-
                 sourceDocument = new Document(reader.GetPageSizeWithRotation(startPage));
-
                 pdfCopyProvider = new PdfCopy(sourceDocument, new FileStream(outputPdfPath, FileMode.Create));
 
                 sourceDocument.Open();
@@ -64,6 +62,7 @@ namespace SECExtract {
                     importedPage = pdfCopyProvider.GetImportedPage(reader, i);
                     pdfCopyProvider.AddPage(importedPage);
                 }
+
                 sourceDocument.Close();
                 reader.Close();
                 success = true;

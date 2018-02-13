@@ -9,6 +9,16 @@ using iTextSharp.text.pdf.parser;
 
 namespace SECExtract {
     public class PdfExtractor {
+        
+        private class UnethicalReader : PdfReader
+        {
+            public UnethicalReader(string fileName)
+                : base(fileName)
+            {
+                unethicalreading = true;
+            }
+        }
+        
         public static int GetPageCount(string sourcePdfPath) {
             var pageCount = 0;
 
@@ -68,6 +78,33 @@ namespace SECExtract {
                 success = true;
             }
             catch { throw; }
+
+            return success;
+        }
+        
+        public static bool CopyIntoFlattenedPdf(string sourcePdfpath, string outputPdfPath)
+        {
+            bool success = false;
+            PdfReader reader = null;
+            Document sourceDocument = null;
+            PdfCopy pdfCopyProvider = null;
+            PdfImportedPage importedPage = null;
+
+            reader = new UnethicalReader(sourcePdfpath);
+            sourceDocument = new Document(reader.GetPageSizeWithRotation(1));
+            pdfCopyProvider = new PdfCopy(sourceDocument, new FileStream(outputPdfPath, FileMode.Create));
+
+            sourceDocument.Open();
+
+            for (int i = 1; i <= reader.NumberOfPages; i++)
+            {
+                importedPage = pdfCopyProvider.GetImportedPage(reader, i);
+                pdfCopyProvider.AddPage(importedPage);
+            }
+
+            sourceDocument.Close();
+            reader.Close();
+            success = true;
 
             return success;
         }
